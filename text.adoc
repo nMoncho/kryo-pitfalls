@@ -58,6 +58,9 @@ val aliceFromFile = kryo.readObject(input, classOf[Person])
 input.close()
 ----
 
+*Note*: to make the previous snippet work, you have to add a _no-args_ constructor to `Person`. I decided
+to omit it for brevity, but it's required for every class that you serialize with Kryo.
+
 As mentioned, class registration is optional, but required by default, which can be disabled with
 `kryo.setRegistrationRequired(false)`.
 
