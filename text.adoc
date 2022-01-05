@@ -99,7 +99,7 @@ val messageFromFile = kryo.readObject(input, classOf[Message]) // <--- Read a Me
 input.close()
 ----
 
-This is perfectly valid, even if `Message` and `Person` are completely different, they have different field
+This is perfectly valid, even if `Message` and `Person` are completely different as they have different field
 names. The only similarity is that both classes have three fields with the same types, just with a different
 order.
 The reason why this works has to do with how `FieldSerializer` (the default serializer for objects) is
@@ -112,8 +112,10 @@ without invalidating previously serialized bytes. Renaming fields is allowed onl
 the alphabetical order of the fields.
 ____
 
-Since both classes' fields, once sorted by name, define the same order:
-`age, id, name` `==` `size, timestamp, wholePayload`,  Kryo deserializes a class' data into another class.
+Since both classes' fields, once sorted by name, define the same type order:
+`(age: Int, id: Long, name: String) == (size: Int, ts: Long, wholePayload: String)`, which when removing
+the names becomes `(Int, Long, String) == (Int, Long, String)`. Kryo then can deserialize a class' data into
+another class.
 We can solve this issue if we replace both write and read methods with ones that include the classes inside
 the payload:
 
@@ -160,8 +162,8 @@ and _20%_.
 .Serializing 50k Messages
 |=====================================================================
 |                         |With Registration |Without Registration
-|With Class in Payload    | 657.663051 ms    | 767.096071 ms
-|Without Class in Payload | 600.054279 ms    | 763.372908 ms
+|With Class in Payload    | 657.7 ms         | 767.1 ms
+|Without Class in Payload | 600.1 ms         | 763.3 ms
 |=====================================================================
 
 .Speed Comparison
@@ -171,7 +173,7 @@ image::speed.png[Speed, width = 700]
 image::space.png[Speed, width = 700]
 
 _Figure 1_ and _Figure 2_ show a benchmark of the first row's scenario, with and without registration with
-class in playlod, for different sizes. First run serialized 10k objects, second run 20k, and so on.
+class in payload, for different sizes. First run serialized 10k objects, second run 20k, and so on.
 This benchmark uses a similar class model from our IoT devices, defining a `Message` containing a list of `Signal`.
 
 Finally, https://github.com/twitter/chill[Twitter Chill] provides this fair warning:
@@ -218,8 +220,8 @@ imagine that both the _Device_ and the _Processor_ uses ID 10 for `Message` and 
 But after a few months of running in production, the _Device_ decides to use ID 11, which breaks the _Processor_'s
 operation.
 
-This, together with the performance requirement of using https://github.com/EsotericSoftware/kryo#pooling[Pooling],
-led _us_ to try to stuff all registration inside a single pool, for which we created another common component
+Considering the fact that Kryo isn't thread-safe and expensive to allocate, we turned to https://github.com/EsotericSoftware/kryo#pooling[Pooling],
+which led _us_ to stuff all registration inside a single pool, for which we created another common component
 to hold and register every definition, in hopes to avoid this problem. If every class registration is in a
 single place, there is no way writers and readers can disagree on the ID of a class.
 
@@ -244,7 +246,7 @@ care about the change.
 Eventually I realised that this is a design problem, not an implementation one. We don't need to stuff
 everything into a single common component, as the boundaries between systems is _now_ clearly defined. A
 better solution would be for each component to expose both its models and serialization pool, since it's
-the component writing to the medium the one that knows which classes effectively end up there.
+the component writing to the medium is the one that knows which classes effectively end up there.
 
 ----
 +----------------+          +----------------+         +----------------+
@@ -259,7 +261,7 @@ the component writing to the medium the one that knows which classes effectively
 
 == Pitfall #3: Persistence
 
-Right off the bat we've contradictory information, on the one hand we're told: "The project is useful any
+Right off the bat, we have contradictory information. On the one hand we're told: "The [Kryo] project is useful any
 time objects need  to be persisted, whether to a file, database, or over the network". But on the other
 we're told: "Serialization compatibility is NOT guaranteed between releases, and for this reason, we
 don't recommend using it for long-term storage". Writing to a file or a database may be long-term, and if
@@ -285,5 +287,5 @@ one of these pitfalls, we'd to go back to the whiteboard to try device solutions
 This is to say, choosing tools is hard, you have to have an informed opinion on the different options, while
 juggling between requirements, and pros and cons.
 
-I would like to thank my colleagues https://twitter.com/ckipp01[@ckipp] and https://twitter.com/BruleVincent[@BruleVincent]
+I would like to thank my colleagues https://twitter.com/ckipp01[@ckipp], https://twitter.com/lootser[@lootser], and https://twitter.com/BruleVincent[@BruleVincent]
 for providing feedback to this blogpost.
